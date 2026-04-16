@@ -1,0 +1,52 @@
+name: Sync
+
+on:
+  schedule:
+    - cron: '0 */4 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  process-and-sync:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: data
+
+      - name: Execute Sync Task
+        env:
+          PUBLIC_KEY: ${{ secrets.RSA_PUBLIC_KEY }}
+          SECRET_SCRIPT: ${{ secrets.SCRAPER_SCRIPT }}
+        shell: pwsh
+        run: |
+          $env:SECRET_SCRIPT | Out-File -FilePath temp_task.ps1 -Encoding utf8
+          
+          .\temp_task.ps1
+          
+          Remove-Item -Path temp_task.ps1 -Force
+
+      - name: Archive Binary Assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ env.ARTIFACT_NAME }}
+          path: ./temp_assets/
+          if-no-files-found: ignore
+          retention-days: 90
+
+      - name: Update State Trackers
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          git add output/
+          
+          if ! git diff-index --quiet HEAD; then
+            git commit -m "chore: sync remote state $(date -u +"%Y-%m-%d %H:%M")"
+            git push origin data
+          else
+            echo "State is current. No updates needed."
+          fi
