@@ -42,8 +42,20 @@ jobs:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           if [ -d "./temp_assets" ] && [ "$(ls -A ./temp_assets)" ]; then
-            gh release create ${{ env.RELEASE_TAG }} ./temp_assets/* \
+            echo "Packing assets into a single archive"
+
+            cd temp_assets
+            zip -r ../vault-bundle-${{ env.RELEASE_TAG }}.zip ./*
+            cd ..
+            
+            echo "Creating release and uploading single bundle..."
+            
+            gh release create ${{ env.RELEASE_TAG }} ./vault-bundle-${{ env.RELEASE_TAG }}.zip \
               --target data \
               --title "Vault ${{ env.RELEASE_TAG }}" \
-              --notes "Automated binary sync."
+              --notes "Bundled archive."
+              
+            echo "Release successfully created."
+          else
+            echo "No new assets to upload."
           fi
